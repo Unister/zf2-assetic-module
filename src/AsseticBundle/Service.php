@@ -280,6 +280,14 @@ class Service
             $config = array_merge($defaultConfig['assets'], $config);
         }
 
+        // append assets by locale
+        $localConfig = $this->getLocaleConfig();
+        if (isset($localConfig['options']['mixin']) && $localConfig['options']['mixin']
+            && isset($localConfig['assets']) && is_array($localConfig['assets'])
+        ) {
+            $config = array_merge(array_values($config), array_values($localConfig['assets']));
+        }
+
         if (count($config) > 0) {
             $this->setupRendererFromOptions($renderer, $config);
             return true;
@@ -292,6 +300,20 @@ class Service
     {
         $defaultDefinition = $this->configuration->getDefault();
         return $defaultDefinition? $defaultDefinition: array();
+    }
+
+    public function getLocaleConfig()
+    {
+        if (class_exists('Locale')) {
+            $locale = \Locale::getDefault();
+            $localeDefinition = $this->configuration->getLocale();
+
+            if (isset($localeDefinition[$locale])) {
+                return $localeDefinition[$locale];
+            }
+        }
+
+        return array();
     }
 
     public function getRouterConfig()

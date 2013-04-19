@@ -73,6 +73,13 @@ class Configuration
     );
 
     /**
+     * Locale options.
+     *
+     * @var array
+     */
+    protected $locale = array();
+
+    /**
      * Map of routes names and assets configuration.
      *
      * @var array
@@ -198,9 +205,19 @@ class Configuration
         $this->default = $default;
     }
 
+    public function setLocale(array $locale)
+    {
+        $this->locale = $locale;
+    }
+
     public function getDefault()
     {
         return $this->default;
+    }
+
+    public function getLocale()
+    {
+        return $this->locale;
     }
 
     public function setRoutes(array $routes)

@@ -38,6 +38,9 @@ Core of module is [assetic](https://github.com/kriswallsmith/assetic) library.
   3. Open ``my/project/folder/configs/application.config.php`` and add ``'AsseticBundle'`` to your ``'modules'`` parameter.
 
 ## Changes
+#### 2013-04-19
+  * Assets appended by Locale
+
 #### 2013-04-11
   * optional filters in debug mode
 
