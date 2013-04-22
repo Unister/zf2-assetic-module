@@ -3,15 +3,18 @@ return array(
     'service_manager'       => array(
         'aliases'   => array(
             'AsseticConfiguration' => 'AsseticBundle\Configuration',
+            'AsseticCacheBuster'   => 'AsseticBundle\CacheBuster',
             'AsseticService'       => 'AsseticBundle\Service',
         ),
         'factories' => array(
             'AsseticBundle\Configuration' => 'AsseticBundle\ConfigurationFactory',
             'AsseticBundle\Service'       => 'AsseticBundle\ServiceFactory',
+            'Assetic\AssetWriter'         => 'AsseticBundle\WriterFactory',
         ),
         'invokables' => array(
             'Assetic\AssetManager' => 'Assetic\AssetManager',
             'Assetic\FilterManager' => 'Assetic\FilterManager',
+            'AsseticBundle\CacheBuster' => 'AsseticBundle\CacheBuster\LastModifiedStrategy',
         ),
     ),
 
