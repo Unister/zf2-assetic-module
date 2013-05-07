@@ -4,4 +4,6 @@
 composer.lock
 vendor/*
 .idea
-/nbproject/private/
+nbproject
+phpunit.xml
+index.php

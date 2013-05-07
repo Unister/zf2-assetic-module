@@ -14,6 +14,13 @@ class Configuration
     protected $debug = false;
 
     /**
+     * Should build assets on request.
+     *
+     * @var bool
+     */
+    protected $buildOnRequest = true;
+
+    /**
      * Full path to public directory where assets will be generated.
      *
      * @var string
@@ -108,9 +115,17 @@ class Configuration
      */
     protected $rendererToStrategy = array();
 
+    /**
+     * List of error types occurring in EVENT_DISPATCH_ERROR that will use
+     * this module to render assets.
+     *
+     * @var array
+     */
     protected $acceptableErrors = array();
 
     /**
+     * Umask
+     *
      * @var null|integer
      */
     protected $umask = null;
@@ -144,14 +159,6 @@ class Configuration
 
     public function setWebPath($path)
     {
-        if (!is_dir($path)) {
-            throw new Exception\RuntimeException('Directory do not exists: '.$path);
-        }
-
-        if (!is_writable($path)) {
-            throw new Exception\RuntimeException('Directory is not writable: '.$path);
-        }
-
         $this->webPath = $path;
     }
 
@@ -166,14 +173,6 @@ class Configuration
 
     public function setCachePath($path)
     {
-        if (!is_dir($path)) {
-            throw new Exception\RuntimeException('Directory do not exists: '.$path);
-        }
-
-        if (!is_writable($path)) {
-            throw new Exception\RuntimeException('Directory is not writable: '.$path);
-        }
-
         $this->cachePath = $path;
     }
 
@@ -386,5 +385,21 @@ class Configuration
         if (is_int($umask)) {
             $this->umask = (int) $umask;
         }
+    }
+
+    /**
+     * @param boolean $flag
+     */
+    public function setBuildOnRequest($flag)
+    {
+        $this->buildOnRequest = (bool) $flag;
+    }
+
+    /**
+     * @return boolean
+     */
+    public function getBuildOnRequest()
+    {
+        return $this->buildOnRequest;
     }
 }
