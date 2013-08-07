@@ -12,6 +12,13 @@ class Configuration
      * @var bool
      */
     protected $debug = false;
+    
+    /**
+     * Combine option giving the opportunity not to combine the assets in debug mode.
+     *
+     * @var bool
+     */
+    protected $combine = true;
 
     /**
      * Should build assets on request.
@@ -68,6 +75,13 @@ class Configuration
      * @var string|null
      */
     protected $basePath;
+
+    /**
+     * Asset will be save on disk, only when it's modification time was changed
+     *
+     * @var bool
+     */
+    protected $writeIfChanged = true;
 
     /**
      * Default options.
@@ -157,15 +171,29 @@ class Configuration
         $this->debug = (bool) $flag;
     }
 
+    public function isCombine()
+    {
+    	return $this->combine;
+    }
+    
+    public function setCombine($flag)
+    {
+    	$this->combine = (bool) $flag;
+    }
+    
     public function setWebPath($path)
     {
         $this->webPath = $path;
     }
 
-    public function getWebPath()
+    public function getWebPath($file = null)
     {
         if (null === $this->webPath) {
             throw new Exception\RuntimeException('Web path is not set');
+        }
+
+        if (null !== $file) {
+            return rtrim($this->webPath, '/\\') . '/' . ltrim($file, '/\\');
         }
 
         return $this->webPath;
@@ -231,9 +259,19 @@ class Configuration
 
     public function getRoute($name, $default = null)
     {
-        return array_key_exists($name, $this->routes)
-                ? $this->routes[$name]
-                : $default;
+        $assets = array();
+        $routeMatched = false;
+
+        // Merge all assets configuration for which regular expression matches route
+        foreach ($this->routes as $spec => $config) {
+            if (preg_match('(^' . $spec . '$)i', $name)) {
+                $routeMatched = true;
+                $assets = Stdlib\ArrayUtils::merge($assets, (array) $config);
+            }
+        }
+
+        // Only return default if none regular expression matched
+        return $routeMatched ? $assets : $default;
     }
 
     public function setControllers(array $controllers)
@@ -249,8 +287,8 @@ class Configuration
     public function getController($name, $default = null)
     {
         return array_key_exists($name, $this->controllers)
-                ? $this->controllers[$name]
-                : $default;
+            ? $this->controllers[$name]
+            : $default;
     }
 
     public function setModules(array $modules)
@@ -275,8 +313,8 @@ class Configuration
     {
         $name = strtolower($name);
         return array_key_exists($name, $this->modules)
-                ? $this->modules[$name]
-                : $default;
+            ? $this->modules[$name]
+            : $default;
     }
 
     public function detectBaseUrl()
@@ -401,5 +439,21 @@ class Configuration
     public function getBuildOnRequest()
     {
         return $this->buildOnRequest;
+    }
+
+    /**
+     * @param boolean $flag
+     */
+    public function setWriteIfChanged($flag)
+    {
+        $this->writeIfChanged = (bool) $flag;
+    }
+
+    /**
+     * @return boolean
+     */
+    public function getWriteIfChanged()
+    {
+        return $this->writeIfChanged;
     }
 }

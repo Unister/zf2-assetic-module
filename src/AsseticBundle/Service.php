@@ -2,16 +2,16 @@
 namespace AsseticBundle;
 
 use Assetic\Asset\AssetCollection;
-use Assetic\AssetManager,
-    Assetic\FilterManager,
-    Assetic\Factory,
-    Assetic\Factory\Worker\WorkerInterface,
-    Assetic\AssetWriter,
-    Assetic\Asset\AssetInterface,
-    Assetic\Asset\AssetCache,
-    Assetic\Cache\FilesystemCache,
-    Zend\View\Renderer\RendererInterface as Renderer,
-    AsseticBundle\View\StrategyInterface;
+use Assetic\AssetManager;
+use Assetic\FilterManager as AsseticFilterManager;
+use Assetic\Factory;
+use Assetic\Factory\Worker\WorkerInterface;
+use Assetic\AssetWriter;
+use Assetic\Asset\AssetInterface;
+use Assetic\Asset\AssetCache;
+use Assetic\Cache\FilesystemCache;
+use Zend\View\Renderer\RendererInterface as Renderer;
+use AsseticBundle\View\StrategyInterface;
 
 class Service
 {
@@ -58,7 +58,7 @@ class Service
     protected $cacheBusterStrategy;
 
     /**
-     * @var \Assetic\FilterManager
+     * @var \Assetic\AsseticFilterManager
      */
     protected $filterManager;
 
@@ -105,9 +105,6 @@ class Service
 
     public function getCacheBusterStrategy()
     {
-        if (null === $this->cacheBusterStrategy) {
-            $this->cacheBusterStrategy = new \AsseticBundle\CacheBuster\LastModifiedStrategy();
-        }
         return $this->cacheBusterStrategy;
     }
 
@@ -117,7 +114,7 @@ class Service
         return $this;
     }
 
-    public function setFilterManager(FilterManager $filterManager)
+    public function setFilterManager(AsseticFilterManager $filterManager)
     {
         $this->filterManager = $filterManager;
     }
@@ -125,7 +122,7 @@ class Service
     public function getFilterManager()
     {
         if (null === $this->filterManager) {
-            $this->filterManager = new FilterManager();
+            $this->filterManager = new AsseticFilterManager();
         }
         return $this->filterManager;
     }
@@ -167,11 +164,6 @@ class Service
      */
     public function build()
     {
-        $umask = $this->configuration->getUmask();
-        if (null !== $umask) {
-            $umask = umask($umask);
-        }
-
         $moduleConfiguration = $this->configuration->getModules();
         foreach ($moduleConfiguration as $configuration) {
             $factory = $this->createAssetFactory($configuration);
@@ -179,17 +171,10 @@ class Service
             foreach ($collections as $name => $options) {
                 $this->prepareCollection($options, $name, $factory);
             }
-
-            $writer = $this->getAssetWriter();
-            $writer->writeManagerAssets($this->assetManager);
-        }
-
-        if (null !== $umask) {
-            umask($umask);
         }
     }
 
-    private function cache(AssetInterface $asset)
+    private function cacheAsset(AssetInterface $asset)
     {
         return $this->configuration->getCacheEnabled()
             ? new AssetCache($asset, new FilesystemCache($this->configuration->getCachePath()))
@@ -222,17 +207,17 @@ class Service
                 $alias = $name;
             }
 
-            $filterId = $alias;
-
-            // remove '?' if the filter is optional
-            if (strpos($filterId, '?') === 0) {
-                $filterId = substr($filterId, 1);
-            };
+            // Filter Id should have optional filter indicator "?"
+            $filterId = ltrim($alias, '?');
 
             if (!$fm->has($filterId)) {
-                $filter = new $name($option);
-                if (is_array($option)) {
-                    call_user_func_array(array($filter, '__construct'), $option);
+                if (is_array($option) && !empty($option)) {
+                    $r = new \ReflectionClass($name);
+                    $filter = $r->newInstanceArgs($option);
+                } else if ($option) {
+                    $filter = new $name($option);
+                } else {
+                    $filter = new $name();
                 }
 
                 $fm->set($filterId, $filter);
@@ -323,6 +308,9 @@ class Service
 
             /** @var $asset \Assetic\Asset\AssetInterface */
             $asset = $this->assetManager->get($assetAlias);
+            // Save asset on disk
+            $this->writeAsset($asset);
+            // Prepare view strategy
             $strategy->setupAsset($asset);
         }
     }
@@ -377,6 +365,8 @@ class Service
         $strategy = $this->strategy[$rendererName];
         $strategy->setBaseUrl($this->configuration->getBaseUrl());
         $strategy->setBasePath($this->configuration->getBasePath());
+        $strategy->setDebug($this->configuration->isDebug());
+        $strategy->setCombine($this->configuration->isCombine());
         $strategy->setRenderer($renderer);
         return $strategy;
     }
@@ -407,12 +397,18 @@ class Service
      * @param array $configuration
      * @return Factory\AssetFactory
      */
-    public function createAssetFactory($configuration)
+    public function createAssetFactory(array $configuration)
     {
         $factory = new Factory\AssetFactory($configuration['root_path']);
         $factory->setAssetManager($this->getAssetManager());
         $factory->setFilterManager($this->getFilterManager());
-        $factory->addWorker($this->getCacheBusterStrategy());
+        // Cache buster should be add only if cache is enabled and if is available.
+        if ($this->configuration->getCacheEnabled()) {
+            $worker = $this->getCacheBusterStrategy();
+            if ($worker instanceof WorkerInterface) {
+                $factory->addWorker($worker);
+            }
+        }
         $factory->setDebug($this->configuration->isDebug());
         return $factory;
     }
@@ -423,38 +419,88 @@ class Service
      */
     public function moveRaw(AssetCollection $asset)
     {
-        foreach ($asset as $value/** @var $value AssetInterface */) {
-            $name = md5($value->getSourceRoot() . $value->getSourcePath());
+        foreach ($asset as $value) {
+            /** @var $value AssetInterface */
             $value->setTargetPath($value->getSourcePath());
-            $value = $this->cache($value);
-            $this->assetManager->set($name, $value);
+            $value = $this->cacheAsset($value);
+            $this->writeAsset($value);
         }
     }
 
     /**
-     * @param $options
-     * @param $name
-     * @param $factory
+     * @param array $options
+     * @param string $name
+     * @param Factory\AssetFactory $factory
+     * @return void
      */
-    public function prepareCollection($options, $name, $factory)
+    public function prepareCollection($options, $name, Factory\AssetFactory $factory)
     {
         $assets = isset($options['assets']) ? $options['assets'] : array();
         $filters = isset($options['filters']) ? $options['filters'] : array();
         $options = isset($options['options']) ? $options['options'] : array();
         $options['output'] = isset($options['output']) ? $options['output'] : $name;
+        $moveRaw = isset($options['move_raw']) && $options['move_raw'];
 
         $filters = $this->initFilters($filters);
-
-        /** @var $asset \Assetic\Asset\AssetCollection */
         $asset = $factory->createAsset($assets, $filters, $options);
 
-        # allow to move all files 1:1 to new directory
-        # its particulary usefull when this assets are images.
-        if (isset($options['move_raw']) && $options['move_raw']) {
+        // Allow to move all files 1:1 to new directory
+        // its particularly useful when this assets are i.e. images.
+        if ($moveRaw) {
             $this->moveRaw($asset);
         } else {
-            $asset = $this->cache($asset);
+            $asset = $this->cacheAsset($asset);
             $this->assetManager->set($name, $asset);
+        }
+    }
+
+    /**
+     * Write $asset to public directory.
+     *
+     * @param AssetInterface $asset     Asset to write
+     */
+    public function writeAsset(AssetInterface $asset)
+    {
+        // We're not interested in saving assets on request
+        if (!$this->configuration->getBuildOnRequest()) {
+            return;
+        }
+
+        // Write asset on disk in every request
+        if (!$this->configuration->getWriteIfChanged()) {
+            $this->write($asset);
+        }
+
+        $target = $this->configuration->getWebPath($asset->getTargetPath());
+        $created = is_file($target);
+        $isChanged = $created && filemtime($target) < $asset->getLastModified();
+
+        // And long requested optimization
+        if (!$created || $isChanged) {
+            $this->write($asset);
+        }
+    }
+
+    /**
+     * @param AssetInterface $asset
+     */
+    protected function write(AssetInterface $asset)
+    {
+        $umask = $this->configuration->getUmask();
+        if (null !== $umask) {
+            $umask = umask($umask);
+        }
+
+        if ($this->configuration->isDebug() && !$this->configuration->isCombine() && $asset instanceof AssetCollection) {
+            foreach ($asset as $item) {
+                $this->writeAsset($item);
+            }
+        } else {
+            $this->getAssetWriter()->writeAsset($asset);
+        }
+
+        if (null !== $umask) {
+            umask($umask);
         }
     }
 }

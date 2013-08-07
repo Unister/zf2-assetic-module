@@ -12,6 +12,10 @@ abstract class AbstractStrategy implements StrategyInterface
 
     protected $basePath;
 
+    protected $debug = false;
+    
+    protected $combine = true;
+
     public function setRenderer(Renderer $renderer)
     {
         $this->renderer = $renderer;
@@ -43,5 +47,25 @@ abstract class AbstractStrategy implements StrategyInterface
     public function getBasePath()
     {
         return $this->basePath;
+    }
+
+    public function setDebug($flag)
+    {
+        $this->debug = (bool) $flag;
+    }
+
+    public function isDebug()
+    {
+        return $this->debug;
+    }
+    
+    public function setCombine($flag)
+    {
+    	$this->combine = (bool) $flag;
+    }
+    
+    public function isCombine()
+    {
+    	return $this->combine;
     }
 }

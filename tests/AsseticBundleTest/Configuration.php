@@ -45,6 +45,16 @@ class Configuration extends \PHPUnit_Framework_TestCase
         $this->assertNull($this->object->setDebug($expected));
         $this->assertEquals($expected, $this->object->isDebug());
     }
+    
+    public function testIsCombine() {
+    	$this->assertTrue($this->object->isCombine());
+    }
+    
+    public function testSetCombine() {
+    	$expected = false;
+    	$this->assertNull($this->object->setCombine($expected));
+    	$this->assertEquals($expected, $this->object->isCombine());
+    }
 
     public function testSetWebPath() {
         $result = $this->object->setWebPath(TEST_ASSETS_DIR);
@@ -166,6 +176,38 @@ class Configuration extends \PHPUnit_Framework_TestCase
         $result = $this->object->getRoute('home');
         $this->assertEquals($expected, $result);
     }
+
+    public function testMergeMultipleRouteMatches() {
+        $this->object->setRoutes(array(
+            'bar' => array(
+                '@a',
+                '@d'
+            ),
+            'foo.*' => array(
+                '@a',
+                '@b'
+            ),
+            'foo/bar' => array(
+                '@c'
+            )
+        ));
+
+        $assets = $this->object->getRoute('foo/bar');
+        $this->assertCount(3, $assets);
+        $this->assertContains('@a', $assets);
+        $this->assertContains('@b', $assets);
+        $this->assertContains('@c', $assets);
+        $this->assertNotContains('@d', $assets);
+    }
+
+    public function testEmptyRouteMatchWillNotTriggerDefault(){
+        $this->object->setRoutes(array('bar' => array()));
+
+        $assets = $this->object->getRoute('bar');
+        $this->assertNotEquals('default', $assets);
+        $this->assertCount(0, $assets);
+    }
+
 
     public function testGetControllers() {
         $expected = array();
