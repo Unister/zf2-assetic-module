@@ -16,5 +16,11 @@ interface StrategyInterface
     public function setBasePath($basePath);
     public function getBasePath();
 
+    public function setDebug($flag);
+    public function isDebug();
+    
+    public function setCombine($flag);
+    public function isCombine();
+
     public function setupAsset(AssetInterface $asset);
 }
